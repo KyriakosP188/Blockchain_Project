@@ -1,0 +1,4 @@
+import os
+
+BLOCK_CAPACITY = os.getenv('BLOCK_CAPACITY', 5)
+MINING_DIFFICULTY = os.getenv('MINING_DIFFICULTY', 5)
