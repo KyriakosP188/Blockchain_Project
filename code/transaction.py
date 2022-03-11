@@ -5,16 +5,15 @@ import json
 import uuid
 
 class Transaction:
-    def __init__(self, sender_address, private_key, receiver_address, amount, transaction_inputs):
+    def __init__(self, sender_address, receiver_address, amount, transaction_inputs, private_key):
         # transaction initialization
         self.sender_address = sender_address
         self.receiver_address = receiver_address
         self.amount = amount
         self.transaction_inputs = transaction_inputs
-        if private_key is not 0:
-            self.signature = self.sign_transaction(private_key)
-            self.transaction_id = self.calc_hash()
-            self.transaction_outputs = self.compute_transaction_outputs()
+        self.signature = self.sign_transaction(private_key)
+        self.transaction_id = self.calc_hash()
+        self.transaction_outputs = self.compute_transaction_outputs()
 
     def sign_transaction(self, private_key):
         # signs the transaction using the sender's private key

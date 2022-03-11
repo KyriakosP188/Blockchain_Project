@@ -1,28 +1,19 @@
-import binascii
-
-import Crypto
-import Crypto.Random
-from Crypto.Hash import SHA
+from transaction import Transaction
 from Crypto.PublicKey import RSA
-from Crypto.Signature import PKCS1_v1_5
+from collections import deque
 
-import hashlib
-import json
-from time import time
-from urllib.parse import urlparse
-from uuid import uuid4
+class Wallet:
+	def __init__(self):
+        # wallet initialization
+		key = RSA.generate(1024)
+		self.private_key = key.exportKey().decode('ISO-8859-1')
+		self.public_key = key.publickey().exportKey().decode('ISO-8859-1')
+		self.transactions = []
+		self.UTXOs = deque()
 
-
-
-class wallet:
-
-	def __init__():
-		##set
-
-		#self.public_key
-		#self.private_key
-		#self_address
-		#self.transactions
-
-	def balance():
-
+	def wallet_balance(self):
+		# computes wallet balance
+		balance = 0
+		for utxo in self.UTXOs:
+			balance += utxo['value']
+		return balance

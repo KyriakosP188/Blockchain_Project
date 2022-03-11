@@ -4,7 +4,6 @@ import time
 import json
 
 CAPACITY = config.BLOCK_CAPACITY
-DIFFICULTY = config.MINING_DIFFICULTY
 
 class Block:
 	def __init__(self, index, previous_hash):
@@ -13,8 +12,9 @@ class Block:
 		self.timestamp = time.time()
 		self.transactions = []
 		self.nonce = 0
-		self.current_hash = self.calc_hash()
 		self.previous_hash = previous_hash
+		if previous_hash != None:
+			self.current_hash = self.calc_hash()
 
 	def calc_hash(self):
 		# calculates current hash of block
@@ -32,9 +32,3 @@ class Block:
 			self.transactions.append(transaction)
 			return True
 		return False
-
-	def mine_block(self):
-		# mines this block
-		while not self.current_hash.startswith('0' * DIFFICULTY):
-			self.nonce += 1
-			self.current_hash = self.calc_hash()
