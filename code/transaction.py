@@ -11,9 +11,10 @@ class Transaction:
         self.receiver_address = receiver_address
         self.amount = amount
         self.transaction_inputs = transaction_inputs
-        self.signature = self.sign_transaction(private_key)
         self.transaction_id = self.calc_hash()
         self.transaction_outputs = self.compute_transaction_outputs()
+        if private_key != None:
+            self.signature = self.sign_transaction(private_key)
 
     def sign_transaction(self, private_key):
         # signs the transaction using the sender's private key
@@ -40,8 +41,7 @@ class Transaction:
             "sender_address": self.sender_address,
             "receiver_address": self.receiver_address,
             "amount": self.amount,
-            "transaction_inputs": self.transaction_inputs,
-            "signature": self.signature
+            "transaction_inputs": self.transaction_inputs
         }, sort_keys=True).encode()
         return sha256(transaction_string).hexdigest()
 

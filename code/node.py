@@ -9,7 +9,7 @@ import config
 DIFFICULTY = config.MINING_DIFFICULTY
 
 class Node:
-	def __init__(self, id):
+	def __init__(self, id=None):
 		self.id = id
 		if id == 0:
 			self.create_genesis_block()
@@ -17,12 +17,14 @@ class Node:
 		self.current_block = None
 		self.wallet = Wallet()
 		self.ring = [] # here we store id, address(ip:port), public key, and balance for every node
+		self.block_pool = deque()
 
 	def create_genesis_block(self):
-		genesis = Block(0, 1)
+		# creates the genesis block (only called by bootrstrap node on start-up)
+		self.current_block = Block(0, 1)
 
 	def create_new_block(self):
-		# index and previous_hash will be updated during mining
+		# creates a new block, index and previous_hash will be updated during mining
 		self.current_block = Block(None, None)
 
 	def register_node_to_ring(self, id, ip, port, public_key, balance):
@@ -98,13 +100,13 @@ class Node:
 		
 
 	def resolve_conflicts(self):
-		# resolve correct chain
+		# resolves conflict by selecting the longest valid chain
 		new_chain = None
 		max_length = len(self.chain)
 
 		for node in self.ring:
 			if node['node_id'] != self.current_id:
-				response = requests.get(node['ip_address'] + '/chain')
+				response = requests.get(node['ip_address'] + '/get_chain')
 
 				if response.status_code == 200:
 					length = response.json()['length']
