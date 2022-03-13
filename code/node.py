@@ -1,10 +1,13 @@
 from transaction import Transaction
+from threading import Thread, Lock
 from blockchain import Blockchain
 from collections import deque
+from copy import deepcopy
 from wallet import Wallet
 from block import Block
 import requests
 import config
+import pickle
 
 DIFFICULTY = config.MINING_DIFFICULTY
 
@@ -18,6 +21,9 @@ class Node:
 		self.wallet = Wallet()
 		self.ring = [] # here we store id, address(ip:port), public key, and balance for every node
 		self.block_pool = deque()
+		self.mine = True
+		self.mine_lock = Lock()
+		self.loop = True
 
 	def create_genesis_block(self):
 		# creates the genesis block (only called by bootrstrap node on start-up)
@@ -76,28 +82,87 @@ class Node:
 		return False
 
 	def broadcast_transaction(self, transaction):
-		# broadcasts transaction to the ring
-		# add_transaction_to_block(self):
+		# broadcasts transaction to the ring and calls add_transaction_to_block if everyone agrees it's valid
+		def thread_function(node, responses, endpoint):
+			# calls the given endpoint for each other node and appends response to list
+			if node['id'] != self.id:
+				response = requests.post('http://' + node['ip'] + ':' + node['port'] + endpoint,
+										data=pickle.dumps(transaction))
+				responses.append(response.status_code)
+
+		# broadcast transaction to all nodes
+		threads = []
+		responses = []
+		for node in self.ring:
+			thread = Thread(target=thread_function, args=(node, responses, '/validate_transaction'))
+			threads.append(thread)
+			thread.start()
+
+		for t in threads:
+			# wait for all the threads to finish
+			t.join()
+
+		for response in responses:
+			if response != 200:
+				return False
+
+		# add transaction to the current block of all nodes
+		threads = []
+		responses = []
+		for node in self.ring:
+			thread = Thread(target=thread_function, args=(node, responses, '/add_transaction_to_block'))
+			threads.append(thread)
+			thread.start()
+
+		self.add_transaction_to_block(transaction)
+		return True
+
+	def add_transaction_to_block(self, transaction):
+		# adds transaction to the current block, if block is full mine it
+		# transaction is valid, so we update wallets and lists involved
 		
 
-	def add_transaction_to_block(self):
-		# if enough transactions  mine
-		# def mine_block(self, block):
-		# def broadcast_block(self):
-
+		if not self.current_block.add_transaction(transaction):
+			# block is full
+			self.block_pool.append(deepcopy(self.current_block))
+			self.create_new_block()
+			if self.loop:
+				# mine loop
+				while True:
+					self.loop = False
+					if self.block_pool:
+						self.mine_lock.acquire()
+						block_to_mine = self.block_pool.popleft()
+						self.mine_block(block_to_mine)
+						self.mine_lock.release()
+						if self.mine:
+							# winner broadcasts block
+							self.broadcast_block(block_to_mine)
 
 	def mine_block(self, block):
 		# mines the given block
 		block.index = self.chain.blocks[-1].index + 1
 		block.previous_hash = self.chain.blocks[-1].current_hash
-
-		while not block.current_hash.startswith('0' * DIFFICULTY):
+		while not block.current_hash.startswith('0' * DIFFICULTY) and self.mine:
 			block.nonce += 1
 			block.current_hash = block.calc_hash()
 
-	def broadcast_block(self):
-		# 
-		
+	def broadcast_block(self, block):
+		# broadcasts mined block
+		def thread_function(node, responses):
+			if node['id'] != self.id:
+				response = requests.post('http://' + node['ip'] + ':' + node['port'] + '/add_block_to_chain',
+										data=pickle.dumps(block))
+				responses.append(response.status_code)
+
+		threads = []
+		responses = []
+		for node in self.ring:
+			thread = Thread(target=thread_function, args=(node, responses))
+			threads.append(thread)
+			thread.start()
+
+		self.chain.add_block(block)
 
 	def resolve_conflicts(self):
 		# resolves conflict by selecting the longest valid chain
