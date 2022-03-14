@@ -50,16 +50,16 @@ class Transaction:
         balance = 0
         for input in self.transaction_inputs:
             balance += input['value']
-        output1 = {
+        output0 = {
             'id': uuid.uuid4().int,
             'transaction_id': self.transaction_id,
             'recipient': self.sender_address,
             'value': balance - self.amount
         }
-        output2 = {
+        output1 = {
             'id': uuid.uuid4().int,
             'transaction_id': self.transaction_id,
             'recipient': self.receiver_address,
             'value': self.amount
         }
-        return [output1, output2]
+        return [output0, output1]

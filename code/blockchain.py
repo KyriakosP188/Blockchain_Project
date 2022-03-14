@@ -9,6 +9,8 @@ class Blockchain:
         # adds new validated block to the chain
         if self.validate_block(block):
             self.blocks.append(block)
+            return True
+        return False
 
     def validate_block(self, block):
         # checks if a certain block of the chain is valid

@@ -6,11 +6,11 @@ import json
 CAPACITY = config.BLOCK_CAPACITY
 
 class Block:
-	def __init__(self, index, previous_hash):
+	def __init__(self, index, transactions, previous_hash):
 		# block initialization
 		self.index = index
 		self.timestamp = time.time()
-		self.transactions = []
+		self.transactions = transactions
 		self.nonce = 0
 		self.previous_hash = previous_hash
 		if previous_hash != None:
