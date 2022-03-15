@@ -1,3 +1,4 @@
+from more_itertools import first
 from transaction import Transaction
 from blockchain import Blockchain
 from collections import deque
@@ -10,12 +11,11 @@ import pickle
 
 DIFFICULTY = config.MINING_DIFFICULTY
 CAPACITY = config.BLOCK_CAPACITY
+NODES = config.NUMBER_OF_NODES
 
 class Node:
 	def __init__(self, id=None):
 		self.id = id
-		if id == 0:
-			self.create_genesis_block()
 		self.chain = Blockchain()
 		self.wallet = Wallet()
 		self.ring = [] # here we store id, address(ip:port), public key, and balance for every node
@@ -25,7 +25,10 @@ class Node:
 
 	def create_genesis_block(self):
 		# creates the genesis block (only called by bootstrap node on start-up)
-		return
+		first_transaction = Transaction('0', self.wallet.public_key, 100 * NODES, [], self.wallet.private_key)
+		self.wallet.UTXOs.append(first_transaction.transaction_outputs[1])
+		genesis_block = Block(0, [first_transaction], 1)
+		self.chain.blocks.append(genesis_block)
 
 	def register_node_to_ring(self, id, ip, port, public_key, balance):
 		# adds this node to the ring (called only by bootstrap node)

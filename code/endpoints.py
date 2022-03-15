@@ -4,7 +4,6 @@ from node import Node
 import pickle
 
 node = Node()
-number_of_nodes = 0
 rest_api = Blueprint('rest_api', __name__)
 
 # ------------------------------------------
