@@ -152,7 +152,7 @@ class Node:
 	def resolve_conflicts(self):
 		# resolves conflict by selecting the longest valid chain
 		def thread_function1(node, responses):
-			response = requests.get('http://' + node['ip'] + ':' + node['port'] + '/share_chain')
+			response = requests.get('http://' + node['ip'] + ':' + node['port'] + '/send_chain_and_id')
 			responses.append(pickle.loads(response._content))
 
 		threads = []
@@ -184,7 +184,7 @@ class Node:
 					port = node['port']
 
 			def thread_function2(ip, port):
-				r = requests.get('http://' + ip + ':' + port + '/share_ring_and_pending_transactions')
+				r = requests.get('http://' + ip + ':' + port + '/send_ring_and_pending_transactions')
 				response.append(pickle.loads(r._content))
 
 			response = []
@@ -197,3 +197,6 @@ class Node:
 			self.pending_transactions = deepcopy(pending_transactons)
 			self.chain = deepcopy(max_chain)
 			self.ring = deepcopy(ring)
+			for node in self.ring:
+				if node['id'] == self.id:
+					self.wallet.UTXOs = node['utxos']

@@ -3,12 +3,11 @@ from argparse import ArgumentParser
 from transaction import Transaction
 from flask import Flask
 from block import Block
+from time import sleep
 from node import Node
-import threading
 import requests
 import config
 import socket
-import time
 
 BOOTSTRAP_IP = config.BOOTSTRAP_IP
 BOOTSTRAP_PORT = config.BOOTSTRAP_PORT
@@ -73,6 +72,8 @@ if __name__ == "__main__":
         # call bootstrap to register node in the ring
         response = requests.post('http://' + BOOTSTRAP_IP + ':' + BOOTSTRAP_PORT + '/register_node',
                                 data={'public_key': node.wallet.public_key, 'ip': IP_address, 'port': port})
+
+        sleep(2)
 
         if response.status_code != 200:
             print('Error initializing node.')

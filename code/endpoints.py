@@ -1,7 +1,13 @@
+from copy import deepcopy
 from flask import Blueprint, jsonify, request
+from threading import Thread
 from time import sleep
 from node import Node
+import requests
 import pickle
+import config
+
+NODES = config.NUMBER_OF_NODES
 
 node = Node()
 rest_api = Blueprint('rest_api', __name__)
@@ -13,7 +19,45 @@ rest_api = Blueprint('rest_api', __name__)
 @rest_api.route('/register_node', methods=['POST'])
 def register_node():
     # registers node to the ring (only called by bootstrap node)
-    return
+    node_public_key = request.form.get('public_key')
+    node_ip = request.form.get('ip')
+    node_port = request.form.get('port')
+    node_id = len(node.ring)
+
+    node.register_node_to_ring(node_id, node_ip, node_port, node_public_key, 0, [])
+
+    if len(node.ring) == NODES:
+        # bootstrap node sends the ring and chain to all other nodes
+        def thread_function(n, responses):
+            response = requests.post('http://' + n['ip'] + ':' + n['port'] + '/receive_ring_and_chain',
+                                    data=pickle.dumps((node.ring, node.chain)))
+            responses.append(pickle.loads(response.status_code))
+
+        threads = []
+        responses = []
+        for n in node.ring:
+            if n['id'] != 0:
+                thread = Thread(target=thread_function, args=(n, responses))
+                threads.append(thread)
+                thread.start()
+
+        for t in threads:
+            t.join()
+
+        # then creates a transaction, giving 100 NBC to each node
+        for n in node.ring:
+            if n['id'] != 0:
+                node.create_transaction(n['public_key'], 100)
+
+    return jsonify({'id': node_id})
+
+@rest_api.route('/receive_ring_and_chain', methods=['POST'])
+def share_ring_and_chain():
+    # receive bootstrap's node ring and chain, only called by bootstrap node on startup
+    (ring, chain) = pickle.loads(request.get_data())
+    node.ring = deepcopy(ring)
+    node.chain = deepcopy(chain)
+    return jsonify({'message': "OK"}), 200
 
 @rest_api.route('/register_transaction', methods=['POST'])
 def register_transaction():
@@ -69,14 +113,14 @@ def register_block():
     node.mine = True
     return jsonify({'message': "OK"}), 200
 
-@rest_api.route('/share_chain', methods=['GET'])
-def share_chain():
-    # sends chain of this node
+@rest_api.route('/send_chain_and_id', methods=['GET'])
+def send_chain_and_id():
+    # sends chain and id of this node
     return pickle.dumps((node.chain, node.id))
 
-@rest_api.route('/share_ring_and_pending_transactions', methods=['GET'])
-def share_ring_and_pending_transactions():
-    # sends ring of this node
+@rest_api.route('/send_ring_and_pending_transactions', methods=['GET'])
+def send_ring_and_pending_transactions():
+    # sends ring and pending transactions list of this node
     return pickle.dumps((node.ring, node.pending_transactions))
 
 # ------------------------------------------
