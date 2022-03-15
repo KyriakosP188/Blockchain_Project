@@ -1,8 +1,9 @@
-from more_itertools import first
+from xmlrpc.client import ResponseError
 from transaction import Transaction
 from blockchain import Blockchain
 from collections import deque
 from threading import Thread
+from copy import deepcopy
 from wallet import Wallet
 from block import Block
 import requests
@@ -30,14 +31,15 @@ class Node:
 		genesis_block = Block(0, [first_transaction], 1)
 		self.chain.blocks.append(genesis_block)
 
-	def register_node_to_ring(self, id, ip, port, public_key, balance):
+	def register_node_to_ring(self, id, ip, port, public_key, balance, utxos):
 		# adds this node to the ring (called only by bootstrap node)
 		self.ring.append({
 			'id': id,
             'ip': ip,
             'port': port,
             'public_key': public_key,
-            'balance': balance
+            'balance': balance,
+			'utxos': utxos
         })
 
 	def create_transaction(self, receiver_address, amount):
@@ -62,17 +64,19 @@ class Node:
 		self.broadcast_transaction(new_transaction)
 
 		if self.validate_transaction(new_transaction):
-			# update ring balance
-			for node in self.ring:
-				if node['public_key'] == new_transaction.sender_address:
-					node['balance'] -= new_transaction.amount
-				elif node['public_key'] == new_transaction.receiver_address:
-					node['balance'] += new_transaction.amount
 			# update wallet UTXOs
 			if self.wallet.public_key == new_transaction.sender_address:
 				self.wallet.UTXOs.append(new_transaction.transaction_outputs[0])
 			elif self.wallet.public_key == new_transaction.receiver_address:
 				self.wallet.UTXOs.append(new_transaction.transaction_outputs[1])
+			# update ring balance and utxos
+			for node in self.ring:
+				if node['public_key'] == new_transaction.sender_address:
+					node['balance'] -= new_transaction.amount
+					node['utxos'] = node.wallet.UTXOs
+				elif node['public_key'] == new_transaction.receiver_address:
+					node['balance'] += new_transaction.amount
+					node['utxos'] = node.wallet.UTXOs
 			# add transaction to block
 			self.pending_transactions.append(new_transaction)
 			return True
@@ -147,4 +151,49 @@ class Node:
 
 	def resolve_conflicts(self):
 		# resolves conflict by selecting the longest valid chain
-		return
+		def thread_function1(node, responses):
+			response = requests.get('http://' + node['ip'] + ':' + node['port'] + '/share_chain')
+			responses.append(pickle.loads(response._content))
+
+		threads = []
+		responses = []
+		for node in self.ring:
+			if node['id'] != self.id:
+				thread = Thread(target=thread_function1, args=(node, responses))
+				threads.append(thread)
+				thread.start()
+
+		for t in threads:
+			t.join()
+
+		max_chain_length = len(self.chain.blocks)
+		max_chain = self.chain
+		max_node_id = self.id
+		for response in responses:
+			if response[0].validate_chain():
+				if len(response[0].blocks) > max_chain_length:
+					max_chain_length = len(response[0].blocks)
+					max_chain = response[0]
+					max_node_id = response[1]
+
+		if max_node_id != self.id:
+			# get ring from node with the longest valid chain
+			for node in self.ring:
+				if node['id'] == max_node_id:
+					ip = node['ip']
+					port = node['port']
+
+			def thread_function2(ip, port):
+				r = requests.get('http://' + ip + ':' + port + '/share_ring_and_pending_transactions')
+				response.append(pickle.loads(r._content))
+
+			response = []
+			t = Thread(target=thread_function2, args=(ip, port)).start()
+			t.join()
+
+			ring = response[0][0]
+			pending_transactons = response[0][1]
+
+			self.pending_transactions = deepcopy(pending_transactons)
+			self.chain = deepcopy(max_chain)
+			self.ring = deepcopy(ring)

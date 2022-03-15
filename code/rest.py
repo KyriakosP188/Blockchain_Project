@@ -61,14 +61,12 @@ if __name__ == "__main__":
     is_bootstrap = args.b
 
     if is_bootstrap:
-        # register bootstrap node in the ring
-        node.register_node_to_ring(0, BOOTSTRAP_IP, BOOTSTRAP_PORT, node.wallet.public_key, 100 * config.NUMBER_OF_NODES)
-
         # create the genesis block
         # add the first transaction to it
         # add it to the chain
         node.create_genesis_block()
-
+        # register bootstrap node in the ring
+        node.register_node_to_ring(0, BOOTSTRAP_IP, BOOTSTRAP_PORT, node.wallet.public_key, node.wallet.wallet_balance(), node.wallet.UTXOs)
         # listen in the specified address (ip:port)
         app.run(host=BOOTSTRAP_IP, port=BOOTSTRAP_PORT)
     else:
