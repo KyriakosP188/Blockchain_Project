@@ -1,6 +1,6 @@
-from copy import deepcopy
 from flask import Blueprint, jsonify, request
 from threading import Thread
+from copy import deepcopy
 from time import sleep
 from node import Node
 import requests
@@ -130,14 +130,18 @@ def send_ring_and_pending_transactions():
 @rest_api.route('/create_new_transaction', methods=['POST'])
 def create_new_transaction():
     # creates new transaction
-    return
+    (receiver_address, amount) = pickle.loads(request.get_data())
+    node.create_new_transaction(receiver_address, amount)
+    if amount > node.wallet.wallet_balance():
+        return jsonify({'message': "Transaction failed. Not enough coins."}), 402
+    return jsonify({'message': "OK"}), 200
 
 @rest_api.route('/view_last_transactions', methods=['GET'])
 def view_last_transactions():
     # returns the transactions that are in the last validated block of the chain
-    return
+    return pickle.dumps(node.chain.blocks[-1].transactions)
 
 @rest_api.route('/get_balance', methods=['GET'])
 def get_balance():
     # returns the balance of this node's wallet
-    return
+    return pickle.dumps(node.wallet.wallet_balance())
