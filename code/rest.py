@@ -1,4 +1,3 @@
-from endpoints import node, rest_api
 from argparse import ArgumentParser
 from transaction import Transaction
 from flask import Flask
@@ -18,10 +17,6 @@ if config.LOCAL:
 else:
     hostname = socket.gethostname()
     IP_address = socket.gethostbyname(hostname)
-
-# Define the flask environment and register the blueprint with the endpoints.
-app = Flask(__name__)
-app.register_blueprint(rest_api)
 
 if __name__ == "__main__":
     # define the argument parser
@@ -53,11 +48,17 @@ if __name__ == "__main__":
 
     # parse the arguments
     args = parser.parse_args()
-    port = args.p
-    config.MINING_DIFFICULTY = args.d
-    config.NUMBER_OF_NODES = args.n
-    config.BLOCK_CAPACITY = args.c
-    is_bootstrap = args.b
+    port = args.port
+    config.MINING_DIFFICULTY = args.difficulty
+    config.NUMBER_OF_NODES = args.nodes
+    config.BLOCK_CAPACITY = args.capacity
+    is_bootstrap = args.bootstrap
+
+    from endpoints import node, rest_api
+
+    # Define the flask environment and register the blueprint with the endpoints.
+    app = Flask(__name__)
+    app.register_blueprint(rest_api)
 
     if is_bootstrap:
         # create the genesis block
@@ -72,8 +73,6 @@ if __name__ == "__main__":
         # call bootstrap to register node in the ring
         response = requests.post('http://' + BOOTSTRAP_IP + ':' + BOOTSTRAP_PORT + '/register_node',
                                 data={'public_key': node.wallet.public_key, 'ip': IP_address, 'port': port})
-
-        sleep(2)
 
         if response.status_code != 200:
             print('Error initializing node.')

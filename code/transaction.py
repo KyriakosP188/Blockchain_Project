@@ -1,6 +1,6 @@
+from Crypto.Signature import PKCS1_PSS
 from Crypto.PublicKey import RSA
-from Crypto.Signature import pss
-from hashlib import sha256
+from Crypto.Hash import SHA256
 import json
 import uuid
 
@@ -20,15 +20,15 @@ class Transaction:
         # signs the transaction using the sender's private key
         message = self.transaction_id.encode("ISO-8859-1")
         key = RSA.importKey(private_key.encode("ISO-8859-1"))
-        h = sha256.new(message)
-        signer = pss.new(key)
-        self.signature = signer.sign(h).decode('ISO-8859-1')
+        h = SHA256.new(message)
+        signer = PKCS1_PSS.new(key)
+        return signer.sign(h).decode('ISO-8859-1')
 
     def verify_signature(self):
         # verifies the signature of the transaction
         key = RSA.importKey(self.sender_address.encode('ISO-8859-1'))
-        h = sha256.new(self.transaction_id.encode('ISO-8859-1'))
-        verifier = pss.new(key)
+        h = SHA256.new(self.transaction_id.encode('ISO-8859-1'))
+        verifier = PKCS1_PSS.new(key)
         try:
             verifier.verify(h, self.signature.encode('ISO-8859-1'))
             return True
@@ -42,8 +42,8 @@ class Transaction:
             "receiver_address": self.receiver_address,
             "amount": self.amount,
             "transaction_inputs": self.transaction_inputs
-        }, sort_keys=True).encode()
-        return sha256(transaction_string).hexdigest()
+        }.__str__())
+        return SHA256.new(transaction_string.encode("ISO-8859-2")).hexdigest()
 
     def compute_transaction_outputs(self):
         # computes the two outputs of the transaction

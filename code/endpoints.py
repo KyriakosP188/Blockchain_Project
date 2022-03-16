@@ -7,8 +7,6 @@ import requests
 import pickle
 import config
 
-NODES = config.NUMBER_OF_NODES
-
 node = Node()
 rest_api = Blueprint('rest_api', __name__)
 
@@ -26,30 +24,33 @@ def register_node():
 
     node.register_node_to_ring(node_id, node_ip, node_port, node_public_key, 0, [])
 
-    if len(node.ring) == NODES:
+    if len(node.ring) == config.NUMBER_OF_NODES:
         # bootstrap node sends the ring and chain to all other nodes
-        def thread_function(n, responses):
-            response = requests.post('http://' + n['ip'] + ':' + n['port'] + '/receive_ring_and_chain',
-                                    data=pickle.dumps((node.ring, node.chain)))
-            responses.append(pickle.loads(response.status_code))
+        def bootstrap_thread():
+            def thread_function(n, responses):
+                response = requests.post('http://' + n['ip'] + ':' + n['port'] + '/receive_ring_and_chain',
+                                        data=pickle.dumps((node.ring, node.chain)))
+                responses.append(response.status_code)
 
-        threads = []
-        responses = []
-        for n in node.ring:
-            if n['id'] != 0:
-                thread = Thread(target=thread_function, args=(n, responses))
-                threads.append(thread)
-                thread.start()
+            threads = []
+            responses = []
+            for n in node.ring:
+                if n['id'] != 0:
+                    thread = Thread(target=thread_function, args=(n, responses))
+                    threads.append(thread)
+                    thread.start()
 
-        for t in threads:
-            t.join()
+            for t in threads:
+                t.join()
 
-        # then creates a transaction, giving 100 NBC to each node
-        for n in node.ring:
-            if n['id'] != 0:
-                node.create_transaction(n['public_key'], 100)
+            # then creates a transaction, giving 100 NBC to each node
+            for n in node.ring:
+                if n['id'] != 0:
+                    node.create_transaction(n['public_key'], 100)
+        
+        Thread(target=bootstrap_thread).start()
 
-    return jsonify({'id': node_id})
+    return jsonify({'id': node_id}), 200
 
 @rest_api.route('/receive_ring_and_chain', methods=['POST'])
 def share_ring_and_chain():
@@ -73,10 +74,10 @@ def register_transaction():
         for n in node.ring:
             if n['public_key'] == transaction.sender_address:
                 n['balance'] -= transaction.amount
-                n['utxos'] = n.wallet.UTXOs
+                n['utxos'].append(transaction.transaction_outputs[0])
             elif n['public_key'] == transaction.receiver_address:
                 n['balance'] += transaction.amount
-                n['utxos'] = n.wallet.UTXOs
+                n['utxos'].append(transaction.transaction_outputs[1])
         # add transaction to block
         node.pending_transactions.append(transaction)
         return jsonify({'message': "OK"}), 200
@@ -104,10 +105,10 @@ def register_block():
                 for n in node.ring:
                     if n['public_key'] == t.sender_address:
                         n['balance'] -= t.amount
-                        n['utxos'] = n.wallet.UTXOs
+                        n['utxos'].append(t.transaction_outputs[0])
                     elif n['public_key'] == t.receiver_address:
                         n['balance'] += t.amount
-                        n['utxos'] = n.wallet.UTXOs
+                        n['utxos'].append(t.transaction_outputs[1])
     else:
         node.resolve_conflicts()
     node.mine = True

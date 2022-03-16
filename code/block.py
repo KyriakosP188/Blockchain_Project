@@ -1,9 +1,7 @@
-from hashlib import sha256
+from Crypto.Hash import SHA256
 import config
 import time
 import json
-
-CAPACITY = config.BLOCK_CAPACITY
 
 class Block:
 	def __init__(self, index, transactions, previous_hash):
@@ -23,12 +21,12 @@ class Block:
             "transactions": self.transactions,
 			"nonce": self.nonce,
             "previous_hash": self.previous_hash
-        }, sort_keys=True).encode()
-		return sha256(block_string).hexdigest()
+        }.__str__())
+		return SHA256.new(block_string.encode("ISO-8859-2")).hexdigest()
 
-	def add_transaction(self, transaction):
-		# adds new block transaction
-		if len(self.transactions) < CAPACITY:
-			self.transactions.append(transaction)
-			return True
-		return False
+	# def add_transaction(self, transaction):
+	# 	# adds new block transaction
+	# 	if len(self.transactions) < CAPACITY:
+	# 		self.transactions.append(transaction)
+	# 		return True
+	# 	return False

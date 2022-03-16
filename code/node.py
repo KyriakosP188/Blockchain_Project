@@ -6,13 +6,10 @@ from threading import Thread
 from copy import deepcopy
 from wallet import Wallet
 from block import Block
+from time import sleep
 import requests
 import config
 import pickle
-
-DIFFICULTY = config.MINING_DIFFICULTY
-CAPACITY = config.BLOCK_CAPACITY
-NODES = config.NUMBER_OF_NODES
 
 class Node:
 	def __init__(self, id=None):
@@ -26,7 +23,7 @@ class Node:
 
 	def create_genesis_block(self):
 		# creates the genesis block (only called by bootstrap node on start-up)
-		first_transaction = Transaction('0', self.wallet.public_key, 100 * NODES, [], self.wallet.private_key)
+		first_transaction = Transaction('0', self.wallet.public_key, 100 * config.NUMBER_OF_NODES, [], self.wallet.private_key)
 		self.wallet.UTXOs.append(first_transaction.transaction_outputs[1])
 		genesis_block = Block(0, [first_transaction], 1)
 		self.chain.blocks.append(genesis_block)
@@ -73,10 +70,10 @@ class Node:
 			for node in self.ring:
 				if node['public_key'] == new_transaction.sender_address:
 					node['balance'] -= new_transaction.amount
-					node['utxos'] = node.wallet.UTXOs
+					node['utxos'].append(new_transaction.transaction_outputs[0])
 				elif node['public_key'] == new_transaction.receiver_address:
 					node['balance'] += new_transaction.amount
-					node['utxos'] = node.wallet.UTXOs
+					node['utxos'].append(new_transaction.transaction_outputs[1])
 			# add transaction to block
 			self.pending_transactions.append(new_transaction)
 			return True
@@ -115,8 +112,8 @@ class Node:
 	def mining_handler(self):
 		# mines block, broadcasts it if node wins the competition and adds it to the chain if it's valid
 		while True:
-			if len(self.pending_transactions) >= CAPACITY and self.mine:
-				transactions = [self.pending_transactions.popleft() for _ in range(CAPACITY)]
+			if len(self.pending_transactions) >= config.BLOCK_CAPACITY and self.mine:
+				transactions = [self.pending_transactions.popleft() for _ in range(config.BLOCK_CAPACITY)]
 				block_to_mine = Block(len(self.chain.blocks), transactions, self.chain.blocks[-1].current_hash)
 				self.mine_block(block_to_mine)
 				if self.mine:
@@ -130,7 +127,7 @@ class Node:
 
 	def mine_block(self, block):
 		# mines the given block
-		while not block.current_hash.startswith('0' * DIFFICULTY) and self.mine:
+		while not block.current_hash.startswith('0' * config.MINING_DIFFICULTY) and self.mine:
 			block.nonce += 1
 			block.current_hash = block.calc_hash()
 
