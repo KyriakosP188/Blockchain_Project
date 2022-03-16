@@ -1,8 +1,7 @@
-from xmlrpc.client import ResponseError
+from threading import Thread, Lock, Event
 from transaction import Transaction
 from blockchain import Blockchain
 from collections import deque
-from threading import Thread
 from copy import deepcopy
 from wallet import Wallet
 from block import Block
@@ -18,8 +17,10 @@ class Node:
 		self.wallet = Wallet()
 		self.ring = [] # here we store id, address(ip:port), public key, and balance for every node
 		self.pending_transactions = deque()
-		Thread(target=self.mining_handler).start()
-		self.mine = True
+		self.pause_thread = Event()
+		self.node_lock = Lock()
+		self.mine_thread = Thread(target=self.mining_handler)
+		self.mine_thread.start()
 
 	def create_genesis_block(self):
 		# creates the genesis block (only called by bootstrap node on start-up)
@@ -49,7 +50,7 @@ class Node:
 				utxo = self.wallet.UTXOs.pop()
 				balance += utxo['value']
 				input = {
-					'id': utxo['transaction_id'],
+					'id': utxo['id'],
 					'value': utxo['value']
 				}
 				transaction_inputs.append(input)
@@ -70,6 +71,13 @@ class Node:
 			for node in self.ring:
 				if node['public_key'] == new_transaction.sender_address:
 					node['balance'] -= new_transaction.amount
+					spent_utxos = []
+					for input in transaction_inputs:
+						for utxo in node['utxos']:
+							if utxo['id'] == input['id']:
+								spent_utxos.append(utxo)
+					for s in spent_utxos:
+						node['utxos'].remove(s)
 					node['utxos'].append(new_transaction.transaction_outputs[0])
 				elif node['public_key'] == new_transaction.receiver_address:
 					node['balance'] += new_transaction.amount
@@ -112,11 +120,17 @@ class Node:
 	def mining_handler(self):
 		# mines block, broadcasts it if node wins the competition and adds it to the chain if it's valid
 		while True:
-			if len(self.pending_transactions) >= config.BLOCK_CAPACITY and self.mine:
+			sleep(0.1)
+			if self.pause_thread:
+				continue
+			self.node_lock.acquire()
+			if len(self.pending_transactions) >= config.BLOCK_CAPACITY:
 				transactions = [self.pending_transactions.popleft() for _ in range(config.BLOCK_CAPACITY)]
 				block_to_mine = Block(len(self.chain.blocks), transactions, self.chain.blocks[-1].current_hash)
-				self.mine_block(block_to_mine)
-				if self.mine:
+				if self.mine_block(block_to_mine):
+					print('------------')
+					print('Block mined!')
+					print('------------')
 					# broadcast block
 					self.broadcast_block(block_to_mine)
 					# add block to chain if valid
@@ -124,12 +138,16 @@ class Node:
 						self.pending_transactions.extendleft(transactions)
 				else:
 					self.pending_transactions.extendleft(transactions)
+			self.node_lock.release()
 
 	def mine_block(self, block):
 		# mines the given block
-		while not block.current_hash.startswith('0' * config.MINING_DIFFICULTY) and self.mine:
+		while not block.current_hash.startswith('0' * config.MINING_DIFFICULTY):
+			if self.pause_thread:
+				return False
 			block.nonce += 1
 			block.current_hash = block.calc_hash()
+		return True
 
 	def broadcast_block(self, block):
 		# broadcasts mined block

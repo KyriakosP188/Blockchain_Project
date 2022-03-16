@@ -2,7 +2,6 @@ from argparse import ArgumentParser
 from transaction import Transaction
 from flask import Flask
 from block import Block
-from time import sleep
 from node import Node
 import requests
 import config
@@ -61,6 +60,7 @@ if __name__ == "__main__":
     app.register_blueprint(rest_api)
 
     if is_bootstrap:
+        node.id = 0
         # create the genesis block
         # add the first transaction to it
         # add it to the chain

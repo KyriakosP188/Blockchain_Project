@@ -1,7 +1,6 @@
 from flask import Blueprint, jsonify, request
-from threading import Thread
+from threading import Thread, Lock, Event
 from copy import deepcopy
-from time import sleep
 from node import Node
 import requests
 import pickle
@@ -74,6 +73,13 @@ def register_transaction():
         for n in node.ring:
             if n['public_key'] == transaction.sender_address:
                 n['balance'] -= transaction.amount
+                spent_utxos = []
+                for input in transaction.transaction_inputs:
+                    for utxo in n['utxos']:
+                        if utxo['id'] == input['id']:
+                            spent_utxos.append(utxo)
+                for s in spent_utxos:
+                    n['utxos'].remove(s)
                 n['utxos'].append(transaction.transaction_outputs[0])
             elif n['public_key'] == transaction.receiver_address:
                 n['balance'] += transaction.amount
@@ -87,8 +93,8 @@ def register_transaction():
 @rest_api.route('/register_block', methods=['POST'])
 def register_block():
     # adds incoming block to the chain if valid
-    node.mine = False
-    sleep(3) # wait for mine loop to break
+    node.pause_thread.set()
+    node.node_lock.acquire()
     block = pickle.loads(request.get_data())
     if node.chain.add_block(block):
         for t in block.transactions:
@@ -105,13 +111,21 @@ def register_block():
                 for n in node.ring:
                     if n['public_key'] == t.sender_address:
                         n['balance'] -= t.amount
+                        spent_utxos = []
+                        for input in t.transaction_inputs:
+                            for utxo in n['utxos']:
+                                if utxo['id'] == input['id']:
+                                    spent_utxos.append(utxo)
+                        for s in spent_utxos:
+                            n['utxos'].remove(s)
                         n['utxos'].append(t.transaction_outputs[0])
                     elif n['public_key'] == t.receiver_address:
                         n['balance'] += t.amount
                         n['utxos'].append(t.transaction_outputs[1])
     else:
         node.resolve_conflicts()
-    node.mine = True
+    node.node_lock.release()
+    node.pause_thread.clear()
     return jsonify({'message': "OK"}), 200
 
 @rest_api.route('/send_chain_and_id', methods=['GET'])
@@ -132,7 +146,7 @@ def send_ring_and_pending_transactions():
 def create_new_transaction():
     # creates new transaction
     (receiver_address, amount) = pickle.loads(request.get_data())
-    node.create_new_transaction(receiver_address, amount)
+    node.create_transaction(receiver_address, amount)
     if amount > node.wallet.wallet_balance():
         return jsonify({'message': "Transaction failed. Not enough coins."}), 402
     return jsonify({'message': "OK"}), 200

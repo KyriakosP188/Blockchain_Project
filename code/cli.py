@@ -16,12 +16,13 @@ class Noobcash(cmd.Cmd):
     def do_t(self, args):
         't <recipient_address> <amount>\nSend the specified amount of NBC coins to the wallet of the given address.'
         args = args.split(' ')
-        if len(args) != 2 or not isinstance(args[1], int):
+        print(args)
+        if len(args) != 2:
             print('Please provide correct <recipient_address> and <amount> to create the transaction.')
             return
         try:
             response = requests.post('http://' + self.ip + ':' + self.port + '/create_new_transaction',
-                                    data=pickle.dumps((args[1], args[0])))
+                                    data=pickle.dumps((args[0], int(args[1]))))
             if response.status_code == 200:
                 print(f'Transaction of {args[1]} NBC coins to {args[0]} completed successfully.')
             elif response.status_code == 402:

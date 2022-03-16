@@ -1,5 +1,4 @@
 from Crypto.Hash import SHA256
-import config
 import time
 import json
 
@@ -23,10 +22,3 @@ class Block:
             "previous_hash": self.previous_hash
         }.__str__())
 		return SHA256.new(block_string.encode("ISO-8859-2")).hexdigest()
-
-	# def add_transaction(self, transaction):
-	# 	# adds new block transaction
-	# 	if len(self.transactions) < CAPACITY:
-	# 		self.transactions.append(transaction)
-	# 		return True
-	# 	return False
