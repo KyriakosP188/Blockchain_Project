@@ -74,7 +74,7 @@ class Node:
 					spent_utxos = []
 					for input in transaction_inputs:
 						for utxo in node['utxos']:
-							if utxo['id'] == input['id']:
+							if input['id'] == utxo['id']:
 								spent_utxos.append(utxo)
 					for s in spent_utxos:
 						node['utxos'].remove(s)
@@ -121,16 +121,16 @@ class Node:
 		# mines block, broadcasts it if node wins the competition and adds it to the chain if it's valid
 		while True:
 			sleep(0.1)
-			if self.pause_thread:
+			if self.pause_thread.is_set():
 				continue
 			self.node_lock.acquire()
 			if len(self.pending_transactions) >= config.BLOCK_CAPACITY:
 				transactions = [self.pending_transactions.popleft() for _ in range(config.BLOCK_CAPACITY)]
 				block_to_mine = Block(len(self.chain.blocks), transactions, self.chain.blocks[-1].current_hash)
 				if self.mine_block(block_to_mine):
-					print('------------')
-					print('Block mined!')
-					print('------------')
+					print('+------------+')
+					print('|Block mined!|')
+					print('+------------+')
 					# broadcast block
 					self.broadcast_block(block_to_mine)
 					# add block to chain if valid
@@ -143,7 +143,10 @@ class Node:
 	def mine_block(self, block):
 		# mines the given block
 		while not block.current_hash.startswith('0' * config.MINING_DIFFICULTY):
-			if self.pause_thread:
+			if self.pause_thread.is_set():
+				print('+---------------+')
+				print('|Stopped mining!|')
+				print('+---------------+')
 				return False
 			block.nonce += 1
 			block.current_hash = block.calc_hash()
@@ -203,7 +206,8 @@ class Node:
 				response.append(pickle.loads(r._content))
 
 			response = []
-			t = Thread(target=thread_function2, args=(ip, port)).start()
+			t = Thread(target=thread_function2, args=(ip, port))
+			t.start()
 			t.join()
 
 			ring = response[0][0]
@@ -214,4 +218,4 @@ class Node:
 			self.ring = deepcopy(ring)
 			for node in self.ring:
 				if node['id'] == self.id:
-					self.wallet.UTXOs = node['utxos']
+					self.wallet.UTXOs = deepcopy(node['utxos'])

@@ -14,21 +14,24 @@ class Noobcash(cmd.Cmd):
         self.ip = '127.0.0.1'
 
     def do_t(self, args):
-        't <recipient_address> <amount>\nSend the specified amount of NBC coins to the wallet of the given address.'
+        't <recipient_id> <amount>\nSend the specified amount of NBC coins to the wallet of the node with the given ID.'
         args = args.split(' ')
-        print(args)
         if len(args) != 2:
-            print('Please provide correct <recipient_address> and <amount> to create the transaction.')
+            print('Please provide <recipient_id> and <amount> to create the transaction.')
             return
         try:
             response = requests.post('http://' + self.ip + ':' + self.port + '/create_new_transaction',
-                                    data=pickle.dumps((args[0], int(args[1]))))
+                                    data=pickle.dumps((int(args[0]), int(args[1]))))
             if response.status_code == 200:
-                print(f'Transaction of {args[1]} NBC coins to {args[0]} completed successfully.')
+                print(f'Transaction of {args[1]} NBC coins to node{args[0]} completed successfully.')
             elif response.status_code == 402:
                 print(response.json()['message'])
+            elif response.status_code == 403:
+                print(response.json()['message'])
+            elif response.status_code == 404:
+                print(response.json()['message'])
             else:
-                print('Transaction failed. Check reciepent address or the system may be down.')
+                print('Transaction failed. Check recipient ID or the system may be down.')
         except:
             print('Connection failed.')
 

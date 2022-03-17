@@ -1,3 +1,4 @@
+from transaction import Transaction
 from Crypto.Hash import SHA256
 import time
 import json
@@ -17,7 +18,7 @@ class Block:
 		# calculates current hash of block
 		block_string = json.dumps({
             "timestamp": self.timestamp,
-            "transactions": self.transactions,
+            "transactions": [t.transaction_id for t in self.transactions],
 			"nonce": self.nonce,
             "previous_hash": self.previous_hash
         }.__str__())

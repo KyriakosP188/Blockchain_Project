@@ -76,7 +76,7 @@ def register_transaction():
                 spent_utxos = []
                 for input in transaction.transaction_inputs:
                     for utxo in n['utxos']:
-                        if utxo['id'] == input['id']:
+                        if input['id'] == utxo['id']:
                             spent_utxos.append(utxo)
                 for s in spent_utxos:
                     n['utxos'].remove(s)
@@ -96,12 +96,16 @@ def register_block():
     node.pause_thread.set()
     node.node_lock.acquire()
     block = pickle.loads(request.get_data())
-    if node.chain.add_block(block):
+    if block.index != node.chain.blocks[-1].index and node.chain.add_block(block):
         for t in block.transactions:
-            if t in node.pending_transactions:
-                # remove completed transactions from node's pending transactions
-                node.pending_transactions.remove(t)
-            else:
+            remove_transcations = []
+            t_bool = True
+            for pt in node.pending_transactions:
+                if t.transaction_id == pt.transaction_id:
+                    # remove completed transactions from node's pending transactions
+                    t_bool = False
+                    remove_transcations.append(pt)
+            if t_bool:
                 # update wallet UTXOs
                 if node.wallet.public_key == t.sender_address:
                     node.wallet.UTXOs.append(t.transaction_outputs[0])
@@ -114,7 +118,7 @@ def register_block():
                         spent_utxos = []
                         for input in t.transaction_inputs:
                             for utxo in n['utxos']:
-                                if utxo['id'] == input['id']:
+                                if input['id']== utxo['id']:
                                     spent_utxos.append(utxo)
                         for s in spent_utxos:
                             n['utxos'].remove(s)
@@ -122,6 +126,8 @@ def register_block():
                     elif n['public_key'] == t.receiver_address:
                         n['balance'] += t.amount
                         n['utxos'].append(t.transaction_outputs[1])
+            for rt in remove_transcations:
+                node.pending_transactions.remove(rt)
     else:
         node.resolve_conflicts()
     node.node_lock.release()
@@ -145,11 +151,20 @@ def send_ring_and_pending_transactions():
 @rest_api.route('/create_new_transaction', methods=['POST'])
 def create_new_transaction():
     # creates new transaction
-    (receiver_address, amount) = pickle.loads(request.get_data())
-    node.create_transaction(receiver_address, amount)
-    if amount > node.wallet.wallet_balance():
-        return jsonify({'message': "Transaction failed. Not enough coins."}), 402
-    return jsonify({'message': "OK"}), 200
+    (receiver_id, amount) = pickle.loads(request.get_data())
+    receiver_address = None
+    for n in node.ring:
+        if receiver_id == n['id']:
+            receiver_address = n['public_key']
+    if receiver_address != None and receiver_address != node.wallet.public_key:
+        if node.create_transaction(receiver_address, amount):
+            return jsonify({'message': "OK"}), 200
+        else:
+            return jsonify({'message': "Transaction failed. Not enough coins or signature is invalid."}), 402
+    elif receiver_address == None:
+        return jsonify({'message': "Transaction failed. There is no node with the given ID."}), 403
+    else:
+        return jsonify({'message': "Transaction failed. You cannot send coins to yourself."}), 404
 
 @rest_api.route('/view_last_transactions', methods=['GET'])
 def view_last_transactions():

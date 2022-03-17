@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
 from transaction import Transaction
+from copy import deepcopy
 from flask import Flask
 from block import Block
 from node import Node
@@ -66,7 +67,7 @@ if __name__ == "__main__":
         # add it to the chain
         node.create_genesis_block()
         # register bootstrap node in the ring
-        node.register_node_to_ring(0, BOOTSTRAP_IP, BOOTSTRAP_PORT, node.wallet.public_key, node.wallet.wallet_balance(), node.wallet.UTXOs)
+        node.register_node_to_ring(0, BOOTSTRAP_IP, BOOTSTRAP_PORT, node.wallet.public_key, node.wallet.wallet_balance(), deepcopy(node.wallet.UTXOs))
         # listen in the specified address (ip:port)
         app.run(host=BOOTSTRAP_IP, port=BOOTSTRAP_PORT)
     else:
