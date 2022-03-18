@@ -18,7 +18,8 @@ class Node:
 		self.ring = [] # here we store id, address(ip:port), public key, and balance for every node
 		self.pending_transactions = deque()
 		self.pause_thread = Event()
-		self.node_lock = Lock()
+		self.block_lock = Lock()
+		self.transaction_lock = Lock()
 		self.mine_thread = Thread(target=self.mining_handler)
 		self.mine_thread.start()
 
@@ -42,6 +43,7 @@ class Node:
 
 	def create_transaction(self, receiver_address, amount):
 		# creates a new transaction
+		self.transaction_lock.acquire()
 		backup = deque()
 		transaction_inputs = []
 		balance = 0
@@ -56,12 +58,12 @@ class Node:
 				transaction_inputs.append(input)
 				backup.append(utxo)
 		else:
+			self.transaction_lock.release()
 			return False
 		new_transaction = Transaction(self.wallet.public_key, receiver_address, amount, transaction_inputs, self.wallet.private_key)
 
-		self.broadcast_transaction(new_transaction)
-
 		if self.validate_transaction(new_transaction):
+			self.broadcast_transaction(new_transaction)
 			# update wallet UTXOs
 			if self.wallet.public_key == new_transaction.sender_address:
 				self.wallet.UTXOs.append(new_transaction.transaction_outputs[0])
@@ -84,10 +86,12 @@ class Node:
 					node['utxos'].append(new_transaction.transaction_outputs[1])
 			# add transaction to block
 			self.pending_transactions.append(new_transaction)
+			self.transaction_lock.release()
 			return True
 		else:
 			# if transaction is invalid revert UTXOs
 			self.wallet.UTXOs.extend(backup)
+			self.transaction_lock.release()
 			return False
 
 	def validate_transaction(self, transaction):
@@ -123,7 +127,7 @@ class Node:
 			sleep(0.1)
 			if self.pause_thread.is_set():
 				continue
-			self.node_lock.acquire()
+			self.block_lock.acquire()
 			if len(self.pending_transactions) >= config.BLOCK_CAPACITY:
 				transactions = [self.pending_transactions.popleft() for _ in range(config.BLOCK_CAPACITY)]
 				block_to_mine = Block(len(self.chain.blocks), transactions, self.chain.blocks[-1].current_hash)
@@ -138,7 +142,7 @@ class Node:
 						self.pending_transactions.extendleft(transactions)
 				else:
 					self.pending_transactions.extendleft(transactions)
-			self.node_lock.release()
+			self.block_lock.release()
 
 	def mine_block(self, block):
 		# mines the given block

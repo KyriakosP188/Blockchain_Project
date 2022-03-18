@@ -64,6 +64,7 @@ def register_transaction():
     # adds incoming transaction to block if valid
     transaction = pickle.loads(request.get_data())
     if node.validate_transaction(transaction):
+        node.transaction_lock.acquire()
         # update wallet UTXOs
         if node.wallet.public_key == transaction.sender_address:
             node.wallet.UTXOs.append(transaction.transaction_outputs[0])
@@ -86,6 +87,7 @@ def register_transaction():
                 n['utxos'].append(transaction.transaction_outputs[1])
         # add transaction to block
         node.pending_transactions.append(transaction)
+        node.transaction_lock.release()
         return jsonify({'message': "OK"}), 200
     else:
         return jsonify({'message': "The transaction is invalid"}), 401
@@ -94,9 +96,10 @@ def register_transaction():
 def register_block():
     # adds incoming block to the chain if valid
     node.pause_thread.set()
-    node.node_lock.acquire()
+    node.block_lock.acquire()
     block = pickle.loads(request.get_data())
-    if block.index != node.chain.blocks[-1].index and node.chain.add_block(block):
+    if block.index == node.chain.blocks[-1].index + 1 and node.chain.add_block(block):
+        node.transaction_lock.acquire()
         for t in block.transactions:
             remove_transcations = []
             t_bool = True
@@ -128,9 +131,10 @@ def register_block():
                         n['utxos'].append(t.transaction_outputs[1])
             for rt in remove_transcations:
                 node.pending_transactions.remove(rt)
+        node.transaction_lock.release()
     else:
         node.resolve_conflicts()
-    node.node_lock.release()
+    node.block_lock.release()
     node.pause_thread.clear()
     return jsonify({'message': "OK"}), 200
 
