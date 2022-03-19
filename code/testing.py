@@ -1,8 +1,10 @@
 from argparse import ArgumentParser
 from threading import Thread
+from time import sleep
 import requests
 import pickle
 import config
+import random
 
 LIMIT = None
 
@@ -19,6 +21,7 @@ def thread_function(i, number_of_nodes, responses):
             count += 1
             if LIMIT and count > LIMIT:
                 break
+            sleep(random.random() * 10)
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='Testing the noobcash system.')

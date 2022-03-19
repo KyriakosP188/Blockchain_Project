@@ -57,8 +57,10 @@ class Noobcash(cmd.Cmd):
         'Check your wallet balance.'
         try:
             response = requests.get('http://' + self.ip + ':' + self.port + '/get_balance')
-            balance = pickle.loads(response._content)
+            (balance, ring) = pickle.loads(response._content)
             print(f'You have {balance} NBC coins in your wallet.')
+            for node in ring:
+                print(f"Node{node['id']} has {node['balance']} NBC coins in their wallet.")
         except:
             print('Connection failed.')
 

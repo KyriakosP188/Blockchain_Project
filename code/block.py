@@ -11,8 +11,7 @@ class Block:
 		self.transactions = transactions
 		self.nonce = 0
 		self.previous_hash = previous_hash
-		if previous_hash != None:
-			self.current_hash = self.calc_hash()
+		self.current_hash = self.calc_hash()
 
 	def calc_hash(self):
 		# calculates current hash of block

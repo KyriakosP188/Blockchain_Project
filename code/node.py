@@ -16,7 +16,7 @@ class Node:
 		self.chain = Blockchain()
 		self.wallet = Wallet()
 		self.ring = [] # here we store id, address(ip:port), public key, and balance for every node
-		self.pending_transactions = deque()
+		self.pending_transactions = []
 		self.pause_thread = Event()
 		self.block_lock = Lock()
 		self.transaction_lock = Lock()
@@ -63,29 +63,31 @@ class Node:
 		new_transaction = Transaction(self.wallet.public_key, receiver_address, amount, transaction_inputs, self.wallet.private_key)
 
 		if self.validate_transaction(new_transaction):
-			self.broadcast_transaction(new_transaction)
 			# update wallet UTXOs
-			if self.wallet.public_key == new_transaction.sender_address:
-				self.wallet.UTXOs.append(new_transaction.transaction_outputs[0])
-			elif self.wallet.public_key == new_transaction.receiver_address:
-				self.wallet.UTXOs.append(new_transaction.transaction_outputs[1])
+			self.wallet.UTXOs.append(new_transaction.transaction_outputs[0])
 			# update ring balance and utxos
 			for node in self.ring:
 				if node['public_key'] == new_transaction.sender_address:
 					node['balance'] -= new_transaction.amount
-					spent_utxos = []
-					for input in transaction_inputs:
-						for utxo in node['utxos']:
-							if input['id'] == utxo['id']:
-								spent_utxos.append(utxo)
-					for s in spent_utxos:
-						node['utxos'].remove(s)
+
+					spent_utxos = set([t['id'] for t in new_transaction.transaction_inputs])
+					current_utxos = set([t['id'] for t in node['utxos']])
+					node['utxos'] = [t for t in node['utxos'] if t['id'] in (current_utxos - spent_utxos)]
+
+					# remaining_utxos = []
+					# for input in new_transaction.transaction_inputs:
+					# 	for utxo in node['utxos']:
+					# 		if input['id'] != utxo['id']:
+					# 			remaining_utxos.append(utxo)
+					# node['utxos'] = remaining_utxos
+
 					node['utxos'].append(new_transaction.transaction_outputs[0])
 				elif node['public_key'] == new_transaction.receiver_address:
 					node['balance'] += new_transaction.amount
 					node['utxos'].append(new_transaction.transaction_outputs[1])
 			# add transaction to block
 			self.pending_transactions.append(new_transaction)
+			self.broadcast_transaction(new_transaction)
 			self.transaction_lock.release()
 			return True
 		else:
@@ -129,28 +131,29 @@ class Node:
 				continue
 			self.block_lock.acquire()
 			if len(self.pending_transactions) >= config.BLOCK_CAPACITY:
-				transactions = [self.pending_transactions.popleft() for _ in range(config.BLOCK_CAPACITY)]
+				transactions = [self.pending_transactions.pop() for _ in range(config.BLOCK_CAPACITY)]
 				block_to_mine = Block(len(self.chain.blocks), transactions, self.chain.blocks[-1].current_hash)
 				if self.mine_block(block_to_mine):
-					print('+------------+')
-					print('|Block mined!|')
-					print('+------------+')
-					# broadcast block
-					self.broadcast_block(block_to_mine)
+					print('+--------------+')
+					print('| Block mined! |')
+					print('+--------------+')
 					# add block to chain if valid
-					if not self.chain.add_block(block_to_mine):
-						self.pending_transactions.extendleft(transactions)
+					if self.chain.add_block(block_to_mine):
+						# broadcast block
+						self.broadcast_block(deepcopy(block_to_mine))
+					else:
+						self.pending_transactions.extend(transactions)
 				else:
-					self.pending_transactions.extendleft(transactions)
+					self.pending_transactions.extend(transactions)
 			self.block_lock.release()
 
 	def mine_block(self, block):
 		# mines the given block
 		while not block.current_hash.startswith('0' * config.MINING_DIFFICULTY):
 			if self.pause_thread.is_set():
-				print('+---------------+')
-				print('|Stopped mining!|')
-				print('+---------------+')
+				print('+-----------------+')
+				print('| Stopped mining! |')
+				print('+-----------------+')
 				return False
 			block.nonce += 1
 			block.current_hash = block.calc_hash()
