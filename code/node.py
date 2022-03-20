@@ -64,27 +64,9 @@ class Node:
 
 		if self.validate_transaction(new_transaction):
 			# update wallet UTXOs
-			self.wallet.UTXOs.append(new_transaction.transaction_outputs[0])
+			self.update_wallet(new_transaction)
 			# update ring balance and utxos
-			for node in self.ring:
-				if node['public_key'] == new_transaction.sender_address:
-					node['balance'] -= new_transaction.amount
-
-					spent_utxos = set([t['id'] for t in new_transaction.transaction_inputs])
-					current_utxos = set([t['id'] for t in node['utxos']])
-					node['utxos'] = [t for t in node['utxos'] if t['id'] in (current_utxos - spent_utxos)]
-
-					# remaining_utxos = []
-					# for input in new_transaction.transaction_inputs:
-					# 	for utxo in node['utxos']:
-					# 		if input['id'] != utxo['id']:
-					# 			remaining_utxos.append(utxo)
-					# node['utxos'] = remaining_utxos
-
-					node['utxos'].append(new_transaction.transaction_outputs[0])
-				elif node['public_key'] == new_transaction.receiver_address:
-					node['balance'] += new_transaction.amount
-					node['utxos'].append(new_transaction.transaction_outputs[1])
+			self.update_ring(new_transaction)
 			# add transaction to block
 			self.pending_transactions.append(new_transaction)
 			self.broadcast_transaction(new_transaction)
@@ -95,6 +77,35 @@ class Node:
 			self.wallet.UTXOs.extend(backup)
 			self.transaction_lock.release()
 			return False
+
+	def update_wallet(self, transaction):
+		# update wallet UTXOs
+		if self.wallet.public_key == transaction.sender_address:
+			self.wallet.UTXOs.append(transaction.transaction_outputs[0])
+		elif self.wallet.public_key == transaction.receiver_address:
+			self.wallet.UTXOs.append(transaction.transaction_outputs[1])
+
+	def update_ring(self, transaction):
+		# update ring balance and utxos
+		for node in self.ring:
+			if node['public_key'] == transaction.sender_address:
+				node['balance'] -= transaction.amount
+
+				spent_utxos = set([t['id'] for t in transaction.transaction_inputs])
+				current_utxos = set([t['id'] for t in node['utxos']])
+				node['utxos'] = [t for t in node['utxos'] if t['id'] in (current_utxos - spent_utxos)]
+
+				# remaining_utxos = []
+				# for input in new_transaction.transaction_inputs:
+				# 	for utxo in node['utxos']:
+				# 		if input['id'] != utxo['id']:
+				# 			remaining_utxos.append(utxo)
+				# node['utxos'] = remaining_utxos
+
+				node['utxos'].append(transaction.transaction_outputs[0])
+			elif node['public_key'] == transaction.receiver_address:
+				node['balance'] += transaction.amount
+				node['utxos'].append(transaction.transaction_outputs[1])
 
 	def validate_transaction(self, transaction):
 		# validates incoming transaction

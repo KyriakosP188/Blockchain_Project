@@ -64,28 +64,9 @@ def register_transaction():
     transaction = pickle.loads(request.get_data())
     if node.validate_transaction(transaction):
         # update wallet UTXOs
-        if node.wallet.public_key == transaction.receiver_address:
-            node.wallet.UTXOs.append(transaction.transaction_outputs[1])
+        node.update_wallet(transaction)
         # update ring balance and utxos
-        for n in node.ring:
-            if n['public_key'] == transaction.sender_address:
-                n['balance'] -= transaction.amount
-                
-                spent_utxos = set([t['id'] for t in transaction.transaction_inputs])
-                current_utxos = set([t['id'] for t in n['utxos']])
-                n['utxos'] = [t for t in n['utxos'] if t['id'] in (current_utxos - spent_utxos)]
-
-                # remaining_utxos = []
-                # for input in transaction.transaction_inputs:
-                # 	for utxo in n['utxos']:
-                # 		if input['id'] != utxo['id']:
-                # 			remaining_utxos.append(utxo)
-                # n['utxos'] = remaining_utxos
-
-                n['utxos'].append(transaction.transaction_outputs[0])
-            elif n['public_key'] == transaction.receiver_address:
-                n['balance'] += transaction.amount
-                n['utxos'].append(transaction.transaction_outputs[1])
+        node.update_ring(transaction)
         # add transaction to block
         node.pending_transactions.append(transaction)
         return jsonify({'message': "OK"}), 200
@@ -107,30 +88,9 @@ def register_block():
         # for transactions that are not in pending list, register
         for transaction in transactions_to_register:
             # update wallet UTXOs
-            if node.wallet.public_key == transaction.sender_address:
-                node.wallet.UTXOs.append(transaction.transaction_outputs[0])
-            elif node.wallet.public_key == transaction.receiver_address:
-                node.wallet.UTXOs.append(transaction.transaction_outputs[1])
+            node.update_wallet(transaction)
             # update ring balance and utxos
-            for n in node.ring:
-                if n['public_key'] == transaction.sender_address:
-                    n['balance'] -= transaction.amount
-
-                    spent_utxos = set([t['id'] for t in transaction.transaction_inputs])
-                    current_utxos = set([t['id'] for t in n['utxos']])
-                    n['utxos'] = [t for t in n['utxos'] if t['id'] in (current_utxos - spent_utxos)]
-
-                    # remaining_utxos = []
-                    # for input in transaction.transaction_inputs:
-                    # 	for utxo in n['utxos']:
-                    # 		if input['id'] != utxo['id']:
-                    # 			remaining_utxos.append(utxo)
-                    # n['utxos'] = remaining_utxos
-
-                    n['utxos'].append(transaction.transaction_outputs[0])
-                elif n['public_key'] == transaction.receiver_address:
-                    n['balance'] += transaction.amount
-                    n['utxos'].append(transaction.transaction_outputs[1])
+            node.update_ring(transaction)
     else:
         node.resolve_conflicts()
     node.block_lock.release()
