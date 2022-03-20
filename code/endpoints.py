@@ -1,9 +1,11 @@
 from flask import Blueprint, jsonify, request
 from threading import Thread, Lock, Event
+from time import sleep
 from node import Node
 import requests
 import pickle
 import config
+import random
 
 node = Node()
 rest_api = Blueprint('rest_api', __name__)
@@ -45,6 +47,7 @@ def register_node():
             for n in node.ring:
                 if n['id'] != 0:
                     node.create_transaction(n['public_key'], 100)
+                    sleep(random.random() * 5)
 
         Thread(target=bootstrap_thread).start()
 

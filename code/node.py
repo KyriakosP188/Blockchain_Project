@@ -187,20 +187,11 @@ class Node:
 
 	def resolve_conflicts(self):
 		# resolves conflict by selecting the longest valid chain
-		def thread_function1(node, responses):
-			response = requests.get('http://' + node['ip'] + ':' + node['port'] + '/send_chain_and_id')
-			responses.append(pickle.loads(response._content))
-
-		threads = []
 		responses = []
 		for node in self.ring:
 			if node['id'] != self.id:
-				thread = Thread(target=thread_function1, args=(node, responses))
-				threads.append(thread)
-				thread.start()
-
-		for t in threads:
-			t.join()
+				response = requests.get('http://' + node['ip'] + ':' + node['port'] + '/send_chain_and_id')
+				responses.append(pickle.loads(response._content))
 
 		max_chain_length = len(self.chain.blocks)
 		max_chain = self.chain
@@ -219,17 +210,8 @@ class Node:
 					ip = node['ip']
 					port = node['port']
 
-			def thread_function2(ip, port):
-				r = requests.get('http://' + ip + ':' + port + '/send_ring_and_pending_transactions')
-				response.append(pickle.loads(r._content))
-
-			response = []
-			t = Thread(target=thread_function2, args=(ip, port))
-			t.start()
-			t.join()
-
-			ring = response[0][0]
-			pending_transactons = response[0][1]
+			response = requests.get('http://' + ip + ':' + port + '/send_ring_and_pending_transactions')
+			(ring, pending_transactons) = pickle.loads(response._content)
 
 			self.pending_transactions = deepcopy(pending_transactons)
 			self.chain = deepcopy(max_chain)
