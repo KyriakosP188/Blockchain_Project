@@ -187,11 +187,20 @@ class Node:
 
 	def resolve_conflicts(self):
 		# resolves conflict by selecting the longest valid chain
+		def thread_function(node, responses):
+			response = requests.get('http://' + node['ip'] + ':' + node['port'] + '/send_chain_and_id')
+			responses.append(pickle.loads(response._content))
+
+		threads = []
 		responses = []
 		for node in self.ring:
 			if node['id'] != self.id:
-				response = requests.get('http://' + node['ip'] + ':' + node['port'] + '/send_chain_and_id')
-				responses.append(pickle.loads(response._content))
+				thread = Thread(target=thread_function, args=(node, responses))
+				threads.append(thread)
+				thread.start()
+
+		for t in threads:
+			t.join()
 
 		max_chain_length = len(self.chain.blocks)
 		max_chain = self.chain
