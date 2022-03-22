@@ -21,7 +21,7 @@ def thread_function(i, number_of_nodes, responses):
             count += 1
             if LIMIT and count > LIMIT:
                 break
-            sleep(random.random() * 10)
+            sleep(random.random() * 5)
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='Testing the noobcash system.')

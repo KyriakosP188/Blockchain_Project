@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from threading import Thread, Lock, Event
+from copy import deepcopy
 from time import sleep
 from node import Node
 import requests
@@ -29,7 +30,7 @@ def register_node():
         def bootstrap_thread():
             def thread_function(n, responses):
                 response = requests.post('http://' + n['ip'] + ':' + n['port'] + '/receive_ring_and_chain',
-                                        data=pickle.dumps((node.ring, node.chain)))
+                                        data=pickle.dumps((deepcopy(node.ring), deepcopy(node.chain))))
                 responses.append(response.status_code)
 
             threads = []
@@ -47,7 +48,7 @@ def register_node():
             for n in node.ring:
                 if n['id'] != 0:
                     node.create_transaction(n['public_key'], 100)
-                    sleep(random.random() * 5)
+                    sleep(random.random() * 2)
 
         Thread(target=bootstrap_thread).start()
 
@@ -65,7 +66,13 @@ def share_ring_and_chain():
 def register_transaction():
     # adds incoming transaction to block if valid
     transaction = pickle.loads(request.get_data())
-    if node.validate_transaction(transaction):
+    # check if transaction is already on the blockchain
+    new = True
+    for block in node.chain.blocks:
+        for t in block.transactions:
+            if transaction.transaction_id == t.transaction_id:
+                new = False
+    if node.validate_transaction(transaction) and new:
         # update wallet UTXOs
         node.update_wallet(transaction)
         # update ring balance and utxos
@@ -74,7 +81,7 @@ def register_transaction():
         node.pending_transactions.append(transaction)
         return jsonify({'message': "OK"}), 200
     else:
-        return jsonify({'message': "The transaction is invalid"}), 401
+        return jsonify({'message': "The transaction is invalid or is already on the blockchain"}), 401
 
 @rest_api.route('/register_block', methods=['POST'])
 def register_block():
@@ -102,13 +109,13 @@ def register_block():
 
 @rest_api.route('/send_chain_and_id', methods=['GET'])
 def send_chain_and_id():
-    # sends chain and id of this node
-    return pickle.dumps((node.chain, node.id))
+    # sends a copy of the chain and id of this node
+    return pickle.dumps((deepcopy(node.chain), deepcopy(node.id)))
 
 @rest_api.route('/send_ring_and_pending_transactions', methods=['GET'])
 def send_ring_and_pending_transactions():
-    # sends ring and pending transactions list of this node
-    return pickle.dumps((node.ring, node.pending_transactions))
+    # sends a copy of the ring and pending transactions list of this node
+    return pickle.dumps((deepcopy(node.ring), deepcopy(node.pending_transactions)))
 
 # ------------------------------------------
 # -------------- CLI endpoints -------------

@@ -1,11 +1,9 @@
 from threading import Thread, Lock, Event
 from transaction import Transaction
 from blockchain import Blockchain
-from collections import deque
 from copy import deepcopy
 from wallet import Wallet
 from block import Block
-from time import sleep
 import requests
 import config
 import pickle
@@ -15,12 +13,12 @@ class Node:
 		self.id = id
 		self.chain = Blockchain()
 		self.wallet = Wallet()
-		self.ring = [] # here we store id, address(ip:port), public key, and balance for every node
 		self.pending_transactions = []
-		self.pause_thread = Event()
+		self.ring = [] # here we store id, address(ip:port), public key, and balance for every node
+		self.node_lock = Lock()
 		self.block_lock = Lock()
-		self.transaction_lock = Lock()
 		self.mine_thread = Thread(target=self.mining_handler)
+		self.pause_thread = Event()
 		self.mine_thread.start()
 
 	def create_genesis_block(self):
@@ -43,9 +41,9 @@ class Node:
 
 	def create_transaction(self, receiver_address, amount):
 		# creates a new transaction
-		self.transaction_lock.acquire()
-		backup = deque()
+		self.node_lock.acquire()
 		transaction_inputs = []
+		backup = []
 		balance = 0
 		if self.wallet.wallet_balance() >= amount:
 			while balance < amount:
@@ -58,7 +56,7 @@ class Node:
 				transaction_inputs.append(input)
 				backup.append(utxo)
 		else:
-			self.transaction_lock.release()
+			self.node_lock.release()
 			return False
 		new_transaction = Transaction(self.wallet.public_key, receiver_address, amount, transaction_inputs, self.wallet.private_key)
 
@@ -70,12 +68,12 @@ class Node:
 			# add transaction to block
 			self.pending_transactions.append(new_transaction)
 			self.broadcast_transaction(new_transaction)
-			self.transaction_lock.release()
+			self.node_lock.release()
 			return True
 		else:
 			# if transaction is invalid revert UTXOs
 			self.wallet.UTXOs.extend(backup)
-			self.transaction_lock.release()
+			self.node_lock.release()
 			return False
 
 	def update_wallet(self, transaction):
@@ -94,13 +92,6 @@ class Node:
 				spent_utxos = set([t['id'] for t in transaction.transaction_inputs])
 				current_utxos = set([t['id'] for t in node['utxos']])
 				node['utxos'] = [t for t in node['utxos'] if t['id'] in (current_utxos - spent_utxos)]
-
-				# remaining_utxos = []
-				# for input in new_transaction.transaction_inputs:
-				# 	for utxo in node['utxos']:
-				# 		if input['id'] != utxo['id']:
-				# 			remaining_utxos.append(utxo)
-				# node['utxos'] = remaining_utxos
 
 				node['utxos'].append(transaction.transaction_outputs[0])
 			elif node['public_key'] == transaction.receiver_address:
@@ -137,7 +128,6 @@ class Node:
 	def mining_handler(self):
 		# mines block, broadcasts it if node wins the competition and adds it to the chain if it's valid
 		while True:
-			sleep(0.1)
 			if self.pause_thread.is_set():
 				continue
 			self.block_lock.acquire()
@@ -222,9 +212,9 @@ class Node:
 			response = requests.get('http://' + ip + ':' + port + '/send_ring_and_pending_transactions')
 			(ring, pending_transactons) = pickle.loads(response._content)
 
-			self.pending_transactions = deepcopy(pending_transactons)
-			self.chain = deepcopy(max_chain)
-			self.ring = deepcopy(ring)
+			self.pending_transactions = pending_transactons
+			self.chain = max_chain
+			self.ring = ring
 			for node in self.ring:
 				if node['id'] == self.id:
 					self.wallet.UTXOs = deepcopy(node['utxos'])
