@@ -9,13 +9,12 @@ from block import Block
 import requests
 import config
 import pickle
+import time
 
 def poll_endpoint(url, request_type='post', data=None):
 	s = requests.Session()
 	r = None
-	retries = Retry(total=5,
-					backoff_factor=2,
-					status_forcelist=[429, 500, 502, 503, 504])
+	retries = Retry(total=5, backoff_factor=2, status_forcelist=[429, 500, 502, 503, 504])
 	s.mount('http://', HTTPAdapter(max_retries=retries))
 	if request_type == 'post':
 		r = s.post(url, data=data)
@@ -32,6 +31,8 @@ class Node:
 		self.ring = [] # here we store id, address(ip:port), public key, and balance for every node
 		self.node_lock = Lock()
 		self.block_lock = Lock()
+		self.block_time_lock = Lock()
+		self.validated_transactions_lock = Lock()
 		self.mine_thread = Thread(target=self.mining_handler)
 		self.pause_thread = Event()
 		self.mine_thread.start()
@@ -76,6 +77,7 @@ class Node:
 		new_transaction = Transaction(self.wallet.public_key, receiver_address, amount, transaction_inputs, self.wallet.private_key)
 
 		if self.validate_transaction(new_transaction):
+			self.write_validated_transactions()
 			# update wallet UTXOs
 			self.update_wallet(new_transaction)
 			# update ring balance and utxos
@@ -154,11 +156,13 @@ class Node:
 				transactions = [self.pending_transactions.pop() for _ in range(config.BLOCK_CAPACITY)]
 				block_to_mine = Block(len(self.chain.blocks), transactions, self.chain.blocks[-1].current_hash)
 				if self.mine_block(block_to_mine):
+					self.write_mine_time()
 					print('+--------------+')
 					print('| Block mined! |')
 					print('+--------------+')
 					# add block to chain if valid
 					if self.chain.add_block(block_to_mine):
+						self.write_block_time()
 						# broadcast block
 						block_pickled = pickle.dumps(block_to_mine)
 						Thread(target=self.broadcast, args=('/register_block', deepcopy(block_pickled))).start()
@@ -196,6 +200,7 @@ class Node:
 					max_node_id = response[1]
 
 		if max_node_id != self.id:
+			self.write_block_time()
 			# get ring from node with the longest valid chain
 			for node in self.ring:
 				if node['id'] == max_node_id:
@@ -211,3 +216,25 @@ class Node:
 			for node in self.ring:
 				if node['id'] == self.id:
 					self.wallet.UTXOs = deepcopy(node['utxos'])
+
+	def write_block_time(self):
+		self.block_time_lock.acquire()
+		folder = f'{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}'
+		target = f'block_time-{config.PORT}-{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}.txt'
+		with open('../../logs/' + folder + '/' + target, 'a') as file:
+			file.write(str(time.time()) + '\n')
+		self.block_time_lock.release()
+
+	def write_mine_time(self):
+		folder = f'{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}'
+		target = f'mine-{config.PORT}-{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}.txt'
+		with open('../../logs/' + folder + '/' + target, 'a') as file:
+			file.write(str(time.time()) + '\n')
+
+	def write_validated_transactions(self):
+		self.validated_transactions_lock.acquire()
+		folder = f'{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}'
+		target = f'validated_transactions-{config.PORT}-{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}.txt'
+		with open('../../logs/' + folder + '/' + target, 'a') as file:
+			file.write(str(1) + '\n')
+		self.validated_transactions_lock.release()

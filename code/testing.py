@@ -1,10 +1,10 @@
 from argparse import ArgumentParser
 from threading import Thread
-from time import sleep
 import requests
 import pickle
 import config
 import random
+import time
 
 LIMIT = None
 
@@ -21,7 +21,7 @@ def thread_function(i, number_of_nodes, responses):
             count += 1
             if LIMIT and count > LIMIT:
                 break
-            sleep(random.random() * 5)
+            time.sleep(random.random() * 10)
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='Testing the noobcash system.')
@@ -44,6 +44,10 @@ if __name__ == "__main__":
         threads.append(thread)
         thread.start()
 
+    folder = f'{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}'
+    target = f'start_time-{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}.txt'
+    with open('../../logs/' + folder + '/' + target, 'a') as file:
+        file.write(str(time.time()) + '\n')
     print('Testing has started.')
 
     for t in threads:

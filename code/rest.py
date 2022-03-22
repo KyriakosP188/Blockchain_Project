@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
     # parse the arguments
     args = parser.parse_args()
-    port = args.port
+    config.PORT = args.port
     config.MINING_DIFFICULTY = args.difficulty
     config.NUMBER_OF_NODES = args.nodes
     config.BLOCK_CAPACITY = args.capacity
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     else:
         # call bootstrap to register node in the ring
         response = requests.post('http://' + BOOTSTRAP_IP + ':' + BOOTSTRAP_PORT + '/register_node',
-                                data={'public_key': node.wallet.public_key, 'ip': IP_address, 'port': port})
+                                data={'public_key': node.wallet.public_key, 'ip': IP_address, 'port': config.PORT})
 
         if response.status_code != 200:
             print('Error initializing node.')
@@ -83,4 +83,4 @@ if __name__ == "__main__":
         node.id = response.json()['id']
 
         # Listen in the specified address (ip:port)
-        app.run(host=IP_address, port=port)
+        app.run(host=IP_address, port=config.PORT)

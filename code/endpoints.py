@@ -1,12 +1,11 @@
 from flask import Blueprint, jsonify, request
 from threading import Thread, Lock, Event
 from copy import deepcopy
-from time import sleep
 from node import Node
-import requests
 import pickle
 import config
 import random
+import time
 
 node = Node()
 rest_api = Blueprint('rest_api', __name__)
@@ -32,7 +31,7 @@ def register_node():
             for n in node.ring:
                 if n['id'] != 0:
                     node.create_transaction(n['public_key'], 100)
-                    sleep(random.random() * 2)
+                    time.sleep(random.random() * 3)
 
         Thread(target=init).start()
     return jsonify({'id': node_id}), 200
@@ -73,6 +72,7 @@ def register_block():
     node.block_lock.acquire()
     block = pickle.loads(request.get_data())
     if block.index == node.chain.blocks[-1].index + 1 and node.chain.add_block(block):
+        node.write_block_time()
         # remove mutual transactions between pending and block
         pending = set([t.transaction_id for t in node.pending_transactions])
         block_transactions = set([t.transaction_id for t in block.transactions])
@@ -130,4 +130,6 @@ def view_last_transactions():
 @rest_api.route('/get_balance', methods=['GET'])
 def get_balance():
     # returns the balance of this node's wallet
-    return pickle.dumps((node.wallet.wallet_balance(), node.ring))
+    for n in node.ring:
+        if n['id'] == node.id:
+            return pickle.dumps(n['balance'])
