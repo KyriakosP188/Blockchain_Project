@@ -1,0 +1,3 @@
+PyCryptodome
+Flask
+pyfiglet
