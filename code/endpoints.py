@@ -27,31 +27,14 @@ def register_node():
 
     if len(node.ring) == config.NUMBER_OF_NODES:
         # bootstrap node sends the ring and chain to all other nodes
-        def bootstrap_thread():
-            def thread_function(n, responses):
-                response = requests.post('http://' + n['ip'] + ':' + n['port'] + '/receive_ring_and_chain',
-                                        data=pickle.dumps((deepcopy(node.ring), deepcopy(node.chain))))
-                responses.append(response.status_code)
-
-            threads = []
-            responses = []
-            for n in node.ring:
-                if n['id'] != 0:
-                    thread = Thread(target=thread_function, args=(n, responses))
-                    threads.append(thread)
-                    thread.start()
-
-            for t in threads:
-                t.join()
-
-            # then creates a transaction, giving 100 NBC to each node
+        def init():
+            node.broadcast('/receive_ring_and_chain', obj=pickle.dumps((deepcopy(node.ring), deepcopy(node.chain))))
             for n in node.ring:
                 if n['id'] != 0:
                     node.create_transaction(n['public_key'], 100)
                     sleep(random.random() * 2)
 
-        Thread(target=bootstrap_thread).start()
-
+        Thread(target=init).start()
     return jsonify({'id': node_id}), 200
 
 @rest_api.route('/receive_ring_and_chain', methods=['POST'])

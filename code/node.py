@@ -1,12 +1,27 @@
+from requests.adapters import HTTPAdapter, Retry
 from threading import Thread, Lock, Event
 from transaction import Transaction
 from blockchain import Blockchain
 from copy import deepcopy
+import concurrent.futures
 from wallet import Wallet
 from block import Block
 import requests
 import config
 import pickle
+
+def poll_endpoint(url, request_type='post', data=None):
+	s = requests.Session()
+	r = None
+	retries = Retry(total=5,
+					backoff_factor=2,
+					status_forcelist=[429, 500, 502, 503, 504])
+	s.mount('http://', HTTPAdapter(max_retries=retries))
+	if request_type == 'post':
+		r = s.post(url, data=data)
+	else:
+		r = s.get(url, data=data)
+	return r
 
 class Node:
 	def __init__(self, id=None):
@@ -67,7 +82,8 @@ class Node:
 			self.update_ring(new_transaction)
 			# add transaction to block
 			self.pending_transactions.append(new_transaction)
-			self.broadcast_transaction(new_transaction)
+			transaction_pickled = pickle.dumps(new_transaction)
+			Thread(target=self.broadcast, args=('/register_transaction', deepcopy(transaction_pickled))).start()
 			self.node_lock.release()
 			return True
 		else:
@@ -110,20 +126,23 @@ class Node:
 
 		return False
 
-	def broadcast_transaction(self, transaction):
-		# broadcasts transaction to the ring
-		def thread_function(node, responses):
-			response = requests.post('http://' + node['ip'] + ':' + node['port'] + '/register_transaction',
-									data=pickle.dumps(transaction))
-			responses.append(response.status_code)
+	def broadcast(self, url, obj, requests_function=requests.post):
+		def make_request(url):
+			if requests_function == requests.post:
+				return poll_endpoint(url, request_type='post', data=obj)
+			else:
+				return poll_endpoint(url, request_type='get', data=obj)
 
-		threads = []
-		responses = []
-		for node in self.ring:
-			if node['id'] != self.id:
-				thread = Thread(target=thread_function, args=(node, responses))
-				threads.append(thread)
-				thread.start()
+		url_list = [
+            f"http://{node['ip']}:{node['port']}{url}" for node in self.ring
+            if node['public_key'] != self.wallet.public_key
+        ]
+
+		with concurrent.futures.ThreadPoolExecutor() as executor:
+			responses = [executor.submit(make_request, url) for url in url_list]
+			concurrent.futures.wait(responses)
+
+		return [r.result() for r in responses]
 
 	def mining_handler(self):
 		# mines block, broadcasts it if node wins the competition and adds it to the chain if it's valid
@@ -141,7 +160,8 @@ class Node:
 					# add block to chain if valid
 					if self.chain.add_block(block_to_mine):
 						# broadcast block
-						self.broadcast_block(deepcopy(block_to_mine))
+						block_pickled = pickle.dumps(block_to_mine)
+						Thread(target=self.broadcast, args=('/register_block', deepcopy(block_pickled))).start()
 					else:
 						self.pending_transactions.extend(transactions)
 				else:
@@ -160,37 +180,10 @@ class Node:
 			block.current_hash = block.calc_hash()
 		return True
 
-	def broadcast_block(self, block):
-		# broadcasts mined block
-		def thread_function(node, responses):
-			response = requests.post('http://' + node['ip'] + ':' + node['port'] + '/register_block',
-									data=pickle.dumps(block))
-			responses.append(response.status_code)
-
-		threads = []
-		responses = []
-		for node in self.ring:
-			if node['id'] != self.id:
-				thread = Thread(target=thread_function, args=(node, responses))
-				threads.append(thread)
-				thread.start()
-
 	def resolve_conflicts(self):
 		# resolves conflict by selecting the longest valid chain
-		def thread_function(node, responses):
-			response = requests.get('http://' + node['ip'] + ':' + node['port'] + '/send_chain_and_id')
-			responses.append(pickle.loads(response._content))
-
-		threads = []
-		responses = []
-		for node in self.ring:
-			if node['id'] != self.id:
-				thread = Thread(target=thread_function, args=(node, responses))
-				threads.append(thread)
-				thread.start()
-
-		for t in threads:
-			t.join()
+		responses = self.broadcast('/send_chain_and_id', None, requests_function=requests.get)
+		responses = [pickle.loads(r._content) for r in responses]
 
 		max_chain_length = len(self.chain.blocks)
 		max_chain = self.chain
@@ -209,7 +202,7 @@ class Node:
 					ip = node['ip']
 					port = node['port']
 
-			response = requests.get('http://' + ip + ':' + port + '/send_ring_and_pending_transactions')
+			response = poll_endpoint('http://' + ip + ':' + port + '/send_ring_and_pending_transactions', request_type='get')
 			(ring, pending_transactons) = pickle.loads(response._content)
 
 			self.pending_transactions = pending_transactons
