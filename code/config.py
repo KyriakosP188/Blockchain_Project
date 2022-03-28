@@ -1,7 +1,6 @@
-# adjust to log testing start time
-NUMBER_OF_NODES = 5
-MINING_DIFFICULTY = 4
-BLOCK_CAPACITY = 1
+NUMBER_OF_NODES = None
+MINING_DIFFICULTY = None
+BLOCK_CAPACITY = None
 PORT = None
 
 BOOTSTRAP_IP = '127.0.0.1'

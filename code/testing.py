@@ -30,9 +30,21 @@ if __name__ == "__main__":
                         type=int,
                         help='The number of nodes in the blockchain.',
                         required=True)
+    parser.add_argument('-d',
+                        '--difficulty',
+                        type=int,
+                        help='The mining difficulty of a new block.',
+                        required=True)
+    parser.add_argument('-c',
+                        '--capacity',
+                        type=int,
+                        help='The transaction capacity of a block.',
+                        required=True)
 
     args = parser.parse_args()
     number_of_nodes = args.nodes
+    difficulty = args.difficulty
+    capacity = args.capacity
     if number_of_nodes != 5 and number_of_nodes != 10:
         print('Please use 5 or 10 nodes.')
         exit()
@@ -44,8 +56,8 @@ if __name__ == "__main__":
         threads.append(thread)
         thread.start()
 
-    folder = f'{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}'
-    target = f'start_time-{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}.txt'
+    folder = f'{number_of_nodes}-{difficulty}-{capacity}'
+    target = f'start_time-{number_of_nodes}-{difficulty}-{capacity}.txt'
     with open('../../logs/' + folder + '/' + target, 'a') as file:
         file.write(str(time.time()) + '\n')
     print('Testing has started.')
