@@ -37,7 +37,7 @@ def register_node():
     return jsonify({'id': node_id}), 200
 
 @rest_api.route('/receive_ring_and_chain', methods=['POST'])
-def share_ring_and_chain():
+def receive_ring_and_chain():
     # receive bootstrap's node ring and chain, only called by bootstrap node on startup
     (ring, chain) = pickle.loads(request.get_data())
     node.ring = ring
