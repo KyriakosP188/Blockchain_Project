@@ -1,4 +1,4 @@
-# Noobcah: A block-chain Project
+# Noobcash:A block-chain Project
 
 Nooobcash is a a simple finance application based on block-chain technology to ensure the Consesus of the system. It is basically a cryptocurency system which constsits of as many users as we determined. Transactions that are held into the system are stored in bolcks and in order to be atached to the main cahain have to validated by the some network user. All users that form the curency network are also minres which mine their block and prevent curency reusability and malicious transtactions.
 
