@@ -221,20 +221,20 @@ class Node:
 		self.block_time_lock.acquire()
 		folder = f'{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}'
 		target = f'block_time-{config.PORT}-{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}.txt'
-		with open('../../logs/' + folder + '/' + target, 'a') as file:
-			file.write(str(time.time()) + '\n')
+		# with open('../../logs/' + folder + '/' + target, 'a') as file:
+		# 	file.write(str(time.time()) + '\n')
 		self.block_time_lock.release()
 
 	def write_mine_time(self):
 		folder = f'{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}'
 		target = f'mine-{config.PORT}-{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}.txt'
-		with open('../../logs/' + folder + '/' + target, 'a') as file:
-			file.write(str(time.time()) + '\n')
+		# with open('../../logs/' + folder + '/' + target, 'a') as file:
+		# 	file.write(str(time.time()) + '\n')
 
 	def write_validated_transactions(self):
 		self.validated_transactions_lock.acquire()
 		folder = f'{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}'
 		target = f'validated_transactions-{config.PORT}-{config.NUMBER_OF_NODES}-{config.MINING_DIFFICULTY}-{config.BLOCK_CAPACITY}.txt'
-		with open('../../logs/' + folder + '/' + target, 'a') as file:
-			file.write(str(1) + '\n')
+		# with open('../../logs/' + folder + '/' + target, 'a') as file:
+		# 	file.write(str(1) + '\n')
 		self.validated_transactions_lock.release()
